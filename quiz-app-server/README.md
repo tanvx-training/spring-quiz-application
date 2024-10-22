@@ -106,3 +106,106 @@
 #### Tài liệu tham khảo:
 - [Spring Cloud Netflix Documentation](https://spring.io/projects/spring-cloud-netflix)
 - [Eureka Wiki](https://github.com/Netflix/eureka)
+
+## 2. Config Server
+
+#### 1. **Tổng quan về Spring Cloud Config**
+- **Spring Cloud Config** là một giải pháp cho phép quản lý cấu hình tập trung, đặc biệt hữu ích trong môi trường **microservices**.
+- Trong các hệ thống microservices, mỗi dịch vụ thường có các tệp cấu hình riêng, điều này có thể gây khó khăn khi phải đồng bộ và quản lý. **Config Server** giúp giải quyết vấn đề này bằng cách lưu trữ các tệp cấu hình tập trung và cung cấp chúng cho các dịch vụ client qua API.
+- Cấu hình có thể được lưu trữ trong các kho lưu trữ bên ngoài như **Git**, **SVN**, **File System**, giúp dễ dàng cập nhật và quản lý.
+
+#### 2. **Cách cấu hình một Spring Cloud Config Server**
+- Để bắt đầu, bạn cần cài đặt dependency sau vào `pom.xml`:
+  ```xml
+  <dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-config-server</artifactId>
+  </dependency>
+  ```
+- Sau đó, kích hoạt **Config Server** bằng cách thêm annotation `@EnableConfigServer` vào class chính:
+  ```java
+  @SpringBootApplication
+  @EnableConfigServer
+  public class ConfigServerApplication {
+      public static void main(String[] args) {
+          SpringApplication.run(ConfigServerApplication.class, args);
+      }
+  }
+  ```
+- **Config Server** cần được chỉ định một nguồn cấu hình bên ngoài để đọc các tệp cấu hình từ đó. Ví dụ, để sử dụng **Git**, bạn có thể cấu hình trong `application.properties`:
+  ```properties
+  spring.cloud.config.server.git.uri=https://github.com/your-repo/config-repo
+  ```
+- **Config Server** sẽ lấy các tệp cấu hình từ kho Git và phục vụ chúng thông qua API để các ứng dụng client có thể truy xuất.
+
+#### 3. **Cách cấu hình một Config Client**
+- Các dịch vụ microservices cần lấy cấu hình từ **Config Server** được gọi là **Config Clients**. Để một dịch vụ trở thành client, bạn cần thêm dependency `spring-cloud-starter-config` vào `pom.xml`:
+  ```xml
+  <dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-config</artifactId>
+  </dependency>
+  ```
+- Sau đó, trong tệp `application.properties` hoặc `bootstrap.properties` của client, bạn phải chỉ ra URL của **Config Server**:
+  ```properties
+  spring.application.name=my-service
+  spring.cloud.config.uri=http://localhost:8888
+  ```
+- Ở đây, `spring.application.name` được dùng để chỉ ra tên dịch vụ, và **Config Server** sẽ dựa vào tên này để trả về cấu hình tương ứng cho dịch vụ đó.
+
+#### 4. **Cấu trúc thư mục và tệp cấu hình**
+- Các tệp cấu hình của dịch vụ được lưu trữ trong Git hoặc các kho lưu trữ khác dưới dạng YAML hoặc properties.
+- Các tệp có thể được chia làm ba loại chính:
+  - `application.yml`: Áp dụng cho tất cả các ứng dụng, là cấu hình mặc định.
+  - `my-service.yml`: Áp dụng cho ứng dụng cụ thể tên là **my-service**.
+  - `application-{profile}.yml`: Áp dụng cho một profile cụ thể, ví dụ: `application-dev.yml` cho môi trường phát triển, `application-prod.yml` cho môi trường sản xuất.
+
+#### 5. **Cấu hình Profile-based**
+- **Profile-based configuration** cho phép cấu hình tùy theo môi trường như **dev**, **test**, **prod**.
+- Ví dụ: tệp `application-prod.yml` có thể chứa thông tin cấu hình khác so với `application-dev.yml` như cơ sở dữ liệu hoặc các API khác nhau.
+- Client có thể truy vấn cấu hình dựa trên profile bằng cách gửi yêu cầu với đường dẫn có chứa profile tương ứng, ví dụ:
+  ```
+  http://localhost:8888/my-service/dev
+  ```
+
+#### 6. **Lấy cấu hình từ Config Server**
+- **Config Clients** lấy cấu hình từ **Config Server** khi khởi động hoặc khi được yêu cầu.
+- Cấu hình có thể được truy xuất dưới dạng JSON bằng REST API:
+  ```bash
+  http://localhost:8888/my-service/default
+  ```
+- Trong đó, `my-service` là tên của ứng dụng, và `default` là profile mặc định. **Config Server** sẽ trả về tệp cấu hình dưới dạng JSON.
+
+#### 7. **Cập nhật cấu hình động (Hot Reload)**
+- **Spring Cloud Bus** có thể được tích hợp để hỗ trợ việc **cập nhật cấu hình động** cho các dịch vụ mà không cần phải khởi động lại.
+- Khi có sự thay đổi trong kho cấu hình (ví dụ Git), một lệnh **refresh** sẽ được gửi tới tất cả các client để chúng cập nhật cấu hình mới mà không phải dừng hệ thống.
+- Bạn có thể kích hoạt tính năng này bằng cách thêm dependency cho Spring Cloud Bus:
+  ```xml
+  <dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-bus-amqp</artifactId>
+  </dependency>
+  ```
+
+#### 8. **Bảo mật trong Spring Cloud Config**
+- **Spring Cloud Config** cho phép mã hóa các thông tin nhạy cảm trong tệp cấu hình như mật khẩu, khóa API, bằng cách sử dụng cơ chế mã hóa tích hợp.
+- Bạn có thể mã hóa một giá trị bằng cách sử dụng lệnh mã hóa:
+  ```bash
+  curl http://localhost:8888/encrypt -d mySecret
+  ```
+- Giá trị đã mã hóa có thể được đặt trong tệp cấu hình dưới dạng:
+  ```yaml
+  password: {cipher}encrypted_value
+  ```
+- **Config Server** sẽ tự động giải mã các giá trị khi cung cấp cho client.
+
+#### 9. **Khả năng mở rộng của Config Server**
+- **Config Server** có thể hỗ trợ nhiều kho cấu hình khác nhau cùng một lúc, như **Git**, **SVN**, **database**, hoặc **local file system**.
+- Điều này giúp cho việc quản lý cấu hình trở nên linh hoạt hơn, đặc biệt là trong các hệ thống phân tán lớn.
+
+#### 10. **Config Server trong môi trường thực tế**
+- Trong môi trường **production**, **Config Server** thường được triển khai với nhiều instance để đảm bảo **high availability**.
+- Các instance này có thể được **load-balanced** để giảm tải và đảm bảo tính ổn định cho toàn bộ hệ thống.
+
+### Kết luận
+**Spring Cloud Config Server** là một công cụ mạnh mẽ giúp quản lý và phân phối cấu hình một cách tập trung cho các dịch vụ trong hệ thống **microservices**. Với khả năng hỗ trợ **cấu hình động**, **profile-based configuration**, và **bảo mật**, Config Server giúp đơn giản hóa và tối ưu hóa quy trình quản lý cấu hình trong môi trường phân tán.
